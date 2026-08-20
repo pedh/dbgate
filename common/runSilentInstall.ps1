@@ -5,7 +5,7 @@
 param(
     [Parameter(Mandatory = $true)][string] $Installer,
     [Parameter(Mandatory = $true)][string] $TargetDir,
-    [int] $TimeoutSeconds = 300
+    [int] $TimeoutSeconds = 120
 )
 
 $ErrorActionPreference = 'Stop'
@@ -15,11 +15,14 @@ if (-not (Test-Path $Installer)) {
 }
 
 Write-Host "install: $Installer -> $TargetDir"
+Write-Host "install: running as $env:USERNAME, elevated=$(([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))"
 
 # NSIS requires /D to be the last argument and to be passed *unquoted* even when the path
 # contains spaces. Passing a single pre-built string to -ArgumentList hands the command
 # line over verbatim, whereas separate arguments would be quoted and /D silently ignored.
-$proc = Start-Process -FilePath $Installer -ArgumentList "/S /D=$TargetDir" -Wait -PassThru
+# /currentuser pins the install mode, which the assisted installer would otherwise derive
+# from the registry.
+$proc = Start-Process -FilePath $Installer -ArgumentList "/S /currentuser /D=$TargetDir" -Wait -PassThru
 Write-Host "install: installer exit code $($proc.ExitCode)"
 
 $expectedExe = Join-Path $TargetDir 'DbGate.exe'
