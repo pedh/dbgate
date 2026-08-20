@@ -1,0 +1,125 @@
+name: Windows verification
+
+# Verifies the Windows build-install-start chain end to end on a clean checkout:
+# the packaged app really contains the plugin backends, it starts without crashing,
+# and the NSIS installer can install unattended into a custom directory.
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+      - 'feature/**'
+      - hotfix/**
+      - eval-model1
+      - eval-model2
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-build:
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      # deliberately contains spaces, this is what dbgate/dbgate#858 is about
+      INSTALL_DIR: 'C:\DbGate Custom Install Dir'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: yarn
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: python -m pip install --upgrade pip setuptools
+
+      - name: adjustPackageJson
+        run: node adjustPackageJson --community
+
+      - name: yarn set timeout
+        run: yarn config set network-timeout 600000
+
+      - name: yarn install
+        run: yarn install
+
+      - name: setCurrentVersion
+        run: yarn setCurrentVersion
+
+      - name: fillPackagedPlugins
+        run: yarn fillPackagedPlugins
+
+      - name: Build Windows app
+        run: yarn run build:app
+
+      - name: List build artifacts
+        run: ls -la app/dist
+
+      # 1) the packaged app must contain every plugin backend (#1300)
+      - name: Check packaged app structure
+        run: node common/checkPackagedApp.js "app/dist/win-unpacked/resources"
+
+      # 2) the packaged app must start and load its plugins
+      - name: Startup smoke test (unpacked build)
+        shell: pwsh
+        run: ./common/runSmokeTest.ps1 -Exe "app/dist/win-unpacked/DbGate.exe" -Label unpacked
+
+      # 3) NSIS installer must install unattended into a custom path containing spaces (#858)
+      - name: Silent install into custom directory with spaces
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Get-ChildItem -Path app/dist -Filter '*win_x64.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'no NSIS installer found in app/dist' }
+          Write-Host "installing $($installer.FullName) into $env:INSTALL_DIR"
+          # NSIS requires /D to be the last parameter and to be given unquoted, so the
+          # command line is built by cmd.exe instead of by PowerShell argument handling
+          & cmd.exe /c "`"$($installer.FullName)`" /S /D=$env:INSTALL_DIR"
+          if ($LASTEXITCODE -ne 0) { throw "installer exited with $LASTEXITCODE" }
+          $exe = Join-Path $env:INSTALL_DIR 'DbGate.exe'
+          if (-not (Test-Path $exe)) { throw "DbGate.exe not found in $env:INSTALL_DIR" }
+          Write-Host "installed into $env:INSTALL_DIR"
+          Get-ChildItem -Path $env:INSTALL_DIR | Select-Object Name | Out-Host
+
+      - name: Check installed app structure
+        run: node common/checkPackagedApp.js "$INSTALL_DIR/resources"
+
+      - name: Startup smoke test (installed app)
+        shell: pwsh
+        run: ./common/runSmokeTest.ps1 -Exe (Join-Path $env:INSTALL_DIR 'DbGate.exe') -Label installed
+
+      - name: Silent uninstall
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $uninstaller = Get-ChildItem -Path $env:INSTALL_DIR -Filter 'Uninstall*.exe' | Select-Object -First 1
+          if (-not $uninstaller) { throw 'no uninstaller found' }
+          $proc = Start-Process -FilePath $uninstaller.FullName -ArgumentList '/S' -Wait -PassThru
+          if ($proc.ExitCode -ne 0) { throw "uninstaller exited with $($proc.ExitCode)" }
+          Write-Host 'uninstalled'
+
+      - name: Upload diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-verification-diagnostics
+          path: |
+            app/dist/builder-debug.yml
+            ${{ runner.temp }}/smoke-*.json
+            ${{ runner.temp }}/smoke-*.log
+          if-no-files-found: ignore
