@@ -44,6 +44,13 @@ foreach ($file in @($logFile, "$logFile.err")) {
     }
 }
 
+# the API forks helper processes that can outlive the main process
+$leftover = Get-Process -Name 'DbGate' -ErrorAction SilentlyContinue
+if ($leftover) {
+    Write-Host "smoke test: stopping $($leftover.Count) leftover process(es)"
+    $leftover | Stop-Process -Force -ErrorAction SilentlyContinue
+}
+
 if (-not (Test-Path $resultFile)) {
     throw "smoke test: no result file written, app exited with $($proc.ExitCode)"
 }

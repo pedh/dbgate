@@ -17,6 +17,18 @@ if (-not (Test-Path $Installer)) {
 Write-Host "install: $Installer -> $TargetDir"
 Write-Host "install: running as $env:USERNAME, elevated=$(([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))"
 
+# The installer refuses to install while the app is running. In silent mode that prompt is
+# auto-answered with cancel and the installer quits with exit code 0 without installing
+# anything, so make sure no leftover process (eg. from the startup smoke test, whose API
+# forks child processes) is still around.
+$running = Get-Process -Name 'DbGate' -ErrorAction SilentlyContinue
+if ($running) {
+    Write-Host "install: stopping $($running.Count) leftover DbGate process(es)"
+    $running | Select-Object Id, ProcessName, Path | Out-Host
+    $running | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 5
+}
+
 # NSIS requires /D to be the last argument and to be passed *unquoted* even when the path
 # contains spaces. Passing a single pre-built string to -ArgumentList hands the command
 # line over verbatim, whereas separate arguments would be quoted and /D silently ignored.
