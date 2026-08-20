@@ -437,7 +437,9 @@ describe('Deploy database', () => {
     })
   );
 
-  test.each([engines.postgreSqlEngine].map(engine => [engine.label, engine]))(
+  test.each(
+    engines.filter(x => x === engines.postgreSqlEngine).map(engine => [engine.label, engine])
+  )(
     'Current timestamp default value - %s',
     testWrapper(async (conn, driver, engine) => {
       await testDatabaseDeploy(engine, conn, driver, [

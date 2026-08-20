@@ -46,7 +46,10 @@ describe('Codex credential storage', () => {
     expect(fileContents).toMatch(/^crypt:/);
     expect(fileContents).not.toContain(credentials.accessToken);
     expect(fileContents).not.toContain(credentials.refreshToken);
-    expect(fileMode).toBe(0o600);
+    if (process.platform !== 'win32') {
+      // POSIX permission bits are not enforced on Windows
+      expect(fileMode).toBe(0o600);
+    }
     expect(files).toEqual(['codex-oauth.json']);
     await expect(credentialsStore.readCredentials()).resolves.toEqual(credentials);
   });

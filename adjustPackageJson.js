@@ -46,6 +46,11 @@ function adjustFile(file, isApp = false) {
     json.build.mac.notarize = false;
   }
 
+  if (isApp && json.build?.mac && !process.env.CSC_LINK) {
+    // without a signing certificate (e.g. fork builds) skip code signing entirely
+    json.build.mac.identity = null;
+  }
+
   if (isApp && Array.isArray(json.build?.linux?.target) && !process.env.SNAPCRAFT_STORE_CREDENTIALS) {
     // without snapcraft credentials (e.g. fork builds) the snap target cannot be published
     json.build.linux.target = json.build.linux.target.filter(x => x !== 'snap');

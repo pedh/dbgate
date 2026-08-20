@@ -151,9 +151,31 @@ jobs:
         run: |
           cd packages/api
           yarn test:ci
-      - name: Integration tests (file-based engines)
+      - name: Start MongoDB 4.0 (native Windows)
+        shell: pwsh
+        run: |
+          # Windows runners cannot run docker service containers, so the MongoDB server
+          # (same 4.0 version as on Linux) is started from the official Windows build.
+          Invoke-WebRequest -Uri "https://fastdl.mongodb.org/win32/mongodb-win32-x86_64-2008plus-ssl-4.0.28.zip" -OutFile mongo.zip
+          Expand-Archive mongo.zip -DestinationPath mongo-dist
+          $mongod = (Get-ChildItem mongo-dist/mongodb-win32-* -Directory)[0].FullName + "\bin\mongod.exe"
+          New-Item -ItemType Directory -Path mongo-data | Out-Null
+          Start-Process -FilePath $mongod -ArgumentList "--dbpath", "mongo-data", "--port", "27017"
+          for ($i = 0; $i -lt 60; $i++) {
+            try {
+              $tcp = New-Object Net.Sockets.TcpClient('127.0.0.1', 27017)
+              $tcp.Close()
+              Write-Host "MongoDB is up"
+              exit 0
+            } catch {
+              Start-Sleep 2
+            }
+          }
+          Write-Error "MongoDB did not start"
+          exit 1
+      - name: Integration tests (engines available on Windows)
         if: always()
         working-directory: integration-tests
         env:
-          INTEGRATION_TEST_ENGINES: SQLite,DuckDB
+          INTEGRATION_TEST_ENGINES: SQLite,DuckDB,MongoDB
         run: yarn test:ci
