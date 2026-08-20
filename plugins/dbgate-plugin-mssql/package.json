@@ -27,7 +27,7 @@
     "build": "yarn build:frontend && yarn build:backend",
     "prepublishOnly": "yarn build",
     "plugin": "yarn build && yarn pack && dbgate-plugin dbgate-plugin-mssql",
-    "copydist": "yarn build && yarn pack && dbgate-copydist ../dist/dbgate-plugin-mssql",
+    "copydist": "yarn build && node ../../common/copyPluginDist.js",
     "plugout": "dbgate-plugout dbgate-plugin-mssql"
   },
   "devDependencies": {

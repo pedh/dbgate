@@ -1,7 +1,7 @@
 const requireEngineDriver = require('dbgate-api/src/utility/requireEngineDriver');
 const crypto = require('crypto');
 const stream = require('stream');
-const { mongoDbEngine, dynamoDbEngine } = require('../engines');
+const { mongoDbEngine, dynamoDbEngine, isEngineAvailable } = require('../engines');
 const tableWriter = require('dbgate-api/src/shell/tableWriter');
 const tableReader = require('dbgate-api/src/shell/tableReader');
 const copyStream = require('dbgate-api/src/shell/copyStream');
@@ -10,10 +10,15 @@ function randomCollectionName() {
     return 'test_' + crypto.randomBytes(6).toString('hex');
 }
 
+// engines whose plugin is not part of this checkout (eg. premium-only DynamoDB) cannot be tested
 const documentEngines = [
     { label: 'MongoDB', engine: mongoDbEngine },
     { label: 'DynamoDB', engine: dynamoDbEngine },
-];
+].filter(x => isEngineAvailable(x.engine));
+
+if (documentEngines.length == 0) {
+    throw new Error('No document engine plugin available');
+}
 
 async function connectEngine(engine) {
     const driver = requireEngineDriver(engine.connection);

@@ -45,8 +45,13 @@ function requirePlugin(packageName, requiredPlugin = null) {
       // @ts-ignore
       module = __non_webpack_require__(modulePath);
     } catch (err) {
-      // console.log('Failed load webpacked module', err.message);
-      module = require(modulePath);
+      try {
+        module = require(modulePath);
+      } catch (fallbackErr) {
+        throw new Error(
+          `DBGM-00000 Could not load plugin ${packageName} from ${modulePath}: ${err.message} / ${fallbackErr.message}`
+        );
+      }
     }
     requiredPlugin = module.__esModule ? module.default : module;
   }

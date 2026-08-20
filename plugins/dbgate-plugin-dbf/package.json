@@ -27,7 +27,7 @@
     "build:backend": "webpack --config webpack-backend.config.js",
     "build": "yarn build:frontend && yarn build:backend",
     "plugin": "yarn build && yarn pack && dbgate-plugin dbgate-plugin-dbf",
-    "copydist": "yarn build && yarn pack && dbgate-copydist ../dist/dbgate-plugin-dbf",
+    "copydist": "yarn build && node ../../common/copyPluginDist.js",
     "plugout": "dbgate-plugout dbgate-plugin-dbf",
     "prepublishOnly": "yarn build"
   },

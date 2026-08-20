@@ -1,4 +1,7 @@
 // @ts-check
+const fs = require('fs');
+const path = require('path');
+
 const views = {
   type: 'views',
   create1: 'CREATE VIEW ~obj1 AS SELECT ~id FROM ~t1',
@@ -821,3 +824,11 @@ module.exports.duckdbEngine = duckdbEngine;
 module.exports.firebirdEngine = firebirdEngine;
 module.exports.mongoDbEngine = mongoDbEngine;
 module.exports.dynamoDbEngine = dynamoDbEngine;
+
+// Some engines are backed by plugins that only ship in the premium repository, so in a
+// community-only checkout their driver cannot be required at all.
+module.exports.isEngineAvailable = engine => {
+  const packageName = engine?.connection?.engine?.split('@')?.[1];
+  if (!packageName) return false;
+  return fs.existsSync(path.join(__dirname, '..', 'plugins', packageName));
+};

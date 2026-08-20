@@ -107,8 +107,21 @@ function packagedPluginsDir() {
   return null;
 }
 
-const packagedPluginList =
-  packagedPluginsDir() != null ? fs.readdirSync(packagedPluginsDir()).filter(x => x.startsWith('dbgate-plugin-')) : [];
+function listPackagedPlugins() {
+  const dir = packagedPluginsDir();
+  if (dir == null) {
+    return [];
+  }
+  if (!fs.existsSync(dir)) {
+    getLogger('directories').error(
+      `DBGM-00000 Packaged plugins directory ${dir} does not exist, no packaged plugin can be loaded`
+    );
+    return [];
+  }
+  return fs.readdirSync(dir).filter(x => x.startsWith('dbgate-plugin-'));
+}
+
+const packagedPluginList = listPackagedPlugins();
 
 function getPluginBackendPath(packageName) {
   // Central guard: every plugin backend require() flows through here. Refusing anything
