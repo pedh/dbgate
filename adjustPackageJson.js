@@ -56,6 +56,13 @@ function adjustFile(file, isApp = false) {
     json.build.linux.target = json.build.linux.target.filter(x => x !== 'snap');
   }
 
+  if (isApp && Array.isArray(json.build?.win?.target)) {
+    // the windows-latest runner ships Visual Studio 2026, whose MSBuild cannot
+    // provide the v143 ARM64 cross build tools - the better-sqlite3 native rebuild
+    // for arm64 fails, so build x64 installers/zips only
+    json.build.win.target = json.build.win.target.map(t => ({ ...t, arch: ['x64'] }));
+  }
+
   if (process.argv.includes('--community')) {
     delete json.optionalDependencies['mongodb-client-encryption'];
     delete json.dependencies['@mongosh/service-provider-node-driver'];
