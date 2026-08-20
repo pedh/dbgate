@@ -1,5 +1,5 @@
-# Installs a DbGate NSIS package unattended into a given directory and verifies the
-# result. Covers dbgate/dbgate#858: the installer must accept a custom target directory.
+# Installs a DbGate NSIS package unattended and verifies the result.
+# Covers dbgate/dbgate#858: the installer must accept a custom target directory.
 
 [CmdletBinding()]
 param(
@@ -14,68 +14,91 @@ if (-not (Test-Path $Installer)) {
     throw "install: $Installer does not exist"
 }
 
+function Get-DbGateInstallations {
+    $found = @()
+    foreach ($key in @(
+            'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*',
+            'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*')) {
+        $found += Get-ItemProperty -Path $key -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -like '*DbGate*' } |
+            Select-Object DisplayName, InstallLocation, UninstallString
+    }
+    return $found
+}
+
+function Remove-DbGateProcesses {
+    $running = Get-Process -Name 'DbGate' -ErrorAction SilentlyContinue
+    if ($running) {
+        # the installer auto-cancels its "app is running" prompt when silent and then
+        # exits 0 without installing anything
+        Write-Host "install: stopping $($running.Count) leftover DbGate process(es)"
+        $running | Stop-Process -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 5
+    }
+}
+
 Write-Host "install: $Installer -> $TargetDir"
 Write-Host "install: running as $env:USERNAME, elevated=$(([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))"
 
-# The installer refuses to install while the app is running. In silent mode that prompt is
-# auto-answered with cancel and the installer quits with exit code 0 without installing
-# anything, so make sure no leftover process (eg. from the startup smoke test, whose API
-# forks child processes) is still around.
-$running = Get-Process -Name 'DbGate' -ErrorAction SilentlyContinue
-if ($running) {
-    Write-Host "install: stopping $($running.Count) leftover DbGate process(es)"
-    $running | Select-Object Id, ProcessName, Path | Out-Host
-    $running | Stop-Process -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 5
-}
-
-# NSIS requires /D to be the last argument and to be passed *unquoted* even when the path
-# contains spaces. Passing a single pre-built string to -ArgumentList hands the command
-# line over verbatim, whereas separate arguments would be quoted and /D silently ignored.
-# /currentuser pins the install mode, which the assisted installer would otherwise derive
-# from the registry.
-$proc = Start-Process -FilePath $Installer -ArgumentList "/S /currentuser /D=$TargetDir" -Wait -PassThru
-Write-Host "install: installer exit code $($proc.ExitCode)"
+Remove-DbGateProcesses
 
 $expectedExe = Join-Path $TargetDir 'DbGate.exe'
-$deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 
-# the installer can relaunch itself and the first process then returns early
-while (-not (Test-Path $expectedExe) -and (Get-Date) -lt $deadline) {
-    Start-Sleep -Seconds 2
+# NSIS wants /D last and unquoted, but different launch mechanisms quote arguments
+# differently, so try the documented spellings until the app appears in $TargetDir
+$attempts = @(
+    @{ Label = 'powershell single argument string'; Run = {
+            Start-Process -FilePath $Installer -ArgumentList "/S /D=$TargetDir" -Wait -PassThru
+        }
+    },
+    @{ Label = 'cmd.exe built command line'; Run = {
+            & cmd.exe /c "`"$Installer`" /S /D=$TargetDir"
+            [pscustomobject]@{ ExitCode = $LASTEXITCODE }
+        }
+    },
+    @{ Label = 'per-user install mode'; Run = {
+            Start-Process -FilePath $Installer -ArgumentList "/S /currentuser /D=$TargetDir" -Wait -PassThru
+        }
+    }
+)
+
+foreach ($attempt in $attempts) {
+    Write-Host "install: attempt - $($attempt.Label)"
+    $proc = & $attempt.Run
+    Write-Host "install: exit code $($proc.ExitCode)"
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while (-not (Test-Path $expectedExe) -and (Get-Date) -lt $deadline) {
+        Start-Sleep -Seconds 2
+    }
+
+    if (Test-Path $expectedExe) {
+        Write-Host "install: OK, installed into $TargetDir via '$($attempt.Label)'"
+        Get-ChildItem -Path $TargetDir | Select-Object Name, Length | Out-Host
+        exit 0
+    }
+
+    Write-Host "install: nothing in $TargetDir after this attempt"
+    $installed = Get-DbGateInstallations
+    if ($installed) {
+        Write-Host 'install: but an installation was registered elsewhere:'
+        $installed | Out-Host
+    }
+    Remove-DbGateProcesses
 }
 
-if (-not (Test-Path $expectedExe)) {
-    Write-Host "install: content of $TargetDir :"
-    if (Test-Path $TargetDir) {
-        Get-ChildItem -Path $TargetDir -Recurse -Depth 1 | Select-Object FullName | Out-Host
+Write-Host 'install: no attempt installed into the requested directory'
+Write-Host 'install: registered DbGate installations:'
+Get-DbGateInstallations | Out-Host
+foreach ($candidate in @(
+        (Join-Path $env:LOCALAPPDATA 'Programs\dbgate'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\DbGate'),
+        (Join-Path ${env:ProgramFiles} 'DbGate'),
+        'C:\DbGate')) {
+    if (Test-Path $candidate) {
+        Write-Host "install: found an installation in $candidate"
     }
-    else {
-        Write-Host 'install: target directory was not created'
-    }
-
-    Write-Host 'install: searching for an installation elsewhere, to see whether /D was ignored:'
-    foreach ($root in @($env:LOCALAPPDATA, $env:APPDATA, ${env:ProgramFiles}, ${env:ProgramFiles(x86)}, 'C:\')) {
-        if (-not $root) { continue }
-        Get-ChildItem -Path $root -Filter 'DbGate.exe' -Recurse -Depth 4 -ErrorAction SilentlyContinue |
-            Select-Object -First 5 FullName | Out-Host
-    }
-
-    Write-Host 'install: uninstall registry entries mentioning DbGate:'
-    foreach ($key in @(
-            'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
-            'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*')) {
-        Get-ItemProperty -Path $key -ErrorAction SilentlyContinue |
-            Where-Object { $_.DisplayName -like '*DbGate*' } |
-            Select-Object DisplayName, InstallLocation | Out-Host
-    }
-
-    throw "install: DbGate.exe did not appear in $TargetDir within $TimeoutSeconds s"
 }
 
-if ($proc.ExitCode -ne 0) {
-    throw "install: installer exited with $($proc.ExitCode)"
-}
-
-Write-Host "install: OK, installed into $TargetDir"
-Get-ChildItem -Path $TargetDir | Select-Object Name, Length | Out-Host
+throw "install: DbGate.exe never appeared in $TargetDir"
