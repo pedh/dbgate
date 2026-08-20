@@ -32,6 +32,10 @@ function datadirCore() {
   if (processArgs.workspaceDir) {
     return processArgs.workspaceDir;
   }
+  if (platformInfo.isPortable) {
+    // portable build: keep data next to the executable instead of the user profile
+    return path.join(process.env.PORTABLE_EXECUTABLE_DIR, '.dbgate');
+  }
   return path.join(os.homedir(), '.dbgate');
 }
 

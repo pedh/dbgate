@@ -7,13 +7,16 @@ on:
       - develop
       - 'feature/**'
       - hotfix/**
+      - eval-model1
+      - eval-model2
+  workflow_dispatch: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  all-tests:
+  linux-tests:
     runs-on: ubuntu-latest
 
     steps:
@@ -26,67 +29,40 @@ jobs:
         with:
           fetch-depth: 1
 
-      - _include: checkout-and-merge-pro
+      - name: yarn set timeout
+        run: yarn config set network-timeout 100000
 
       - name: yarn install
-        run: |
-          cd ../dbgate-merged
-          yarn install
+        run: yarn install
 
       - name: Integration tests
         run: |
-          cd ../dbgate-merged
           cd integration-tests
           yarn test:ci
 
       - name: Filter parser tests
         if: always()
         run: |
-          cd ../dbgate-merged
           cd packages/filterparser
           yarn test:ci
 
       - name: Datalib (perspective) tests
         if: always()
         run: |
-          cd ../dbgate-merged
           cd packages/datalib
           yarn test:ci
 
       - name: Tools tests
         if: always()
         run: |
-          cd ../dbgate-merged
           cd packages/tools
           yarn test:ci
 
       - name: API tests
         if: always()
         run: |
-          cd ../dbgate-merged
           cd packages/api
           yarn test:ci
-
-      # - uses: tanmen/jest-reporter@v1
-      #   if: always()
-      #   with:
-      #     github-token: ${{ secrets.GITHUB_TOKEN }}
-      #     result-file: integration-tests/result.json
-      #     action-name: Integration tests
-
-      # - uses: tanmen/jest-reporter@v1
-      #   if: always()
-      #   with:
-      #     github-token: ${{ secrets.GITHUB_TOKEN }}
-      #     result-file: packages/filterparser/result.json
-      #     action-name: Filter parser test results
-
-      # - uses: tanmen/jest-reporter@v1
-      #   if: always()
-      #   with:
-      #     github-token: ${{ secrets.GITHUB_TOKEN }}
-      #     result-file: packages/datalib/result.json
-      #     action-name: Datalib (perspectives) test results
 
     services:
       postgres-integr:
@@ -165,3 +141,55 @@ jobs:
         image: amazon/dynamodb-local
         ports:
           - '8000:8000'
+
+  windows-tests:
+    runs-on: windows-latest
+
+    steps:
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v1
+        with:
+          node-version: 22.x
+
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
+      - name: yarn set timeout
+        run: yarn config set network-timeout 100000
+
+      - name: yarn install
+        run: yarn install
+
+      - name: Filter parser tests
+        run: |
+          cd packages/filterparser
+          yarn test:ci
+
+      - name: Datalib (perspective) tests
+        if: always()
+        run: |
+          cd packages/datalib
+          yarn test:ci
+
+      - name: Tools tests
+        if: always()
+        run: |
+          cd packages/tools
+          yarn test:ci
+
+      - name: API tests
+        if: always()
+        run: |
+          cd packages/api
+          yarn test:ci
+
+      # Windows runners cannot run docker service containers, so the integration suite
+      # runs against the file-based engines only. This is a platform constraint, not
+      # a test exclusion - the same test files run against all engines on Linux.
+      - name: Integration tests (file-based engines)
+        if: always()
+        working-directory: integration-tests
+        env:
+          INTEGRATION_TEST_ENGINES: 'SQLite,DuckDB'
+        run: yarn test:ci

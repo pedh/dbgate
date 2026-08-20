@@ -41,6 +41,16 @@ function adjustFile(file, isApp = false) {
     delete json.optionalDependencies.msnodesqlv8;
   }
 
+  if (isApp && json.build?.mac && !process.env.APPLE_ID) {
+    // without Apple credentials (e.g. fork builds) notarization cannot run
+    json.build.mac.notarize = false;
+  }
+
+  if (isApp && Array.isArray(json.build?.linux?.target) && !process.env.SNAPCRAFT_STORE_CREDENTIALS) {
+    // without snapcraft credentials (e.g. fork builds) the snap target cannot be published
+    json.build.linux.target = json.build.linux.target.filter(x => x !== 'snap');
+  }
+
   if (process.argv.includes('--community')) {
     delete json.optionalDependencies['mongodb-client-encryption'];
     delete json.dependencies['@mongosh/service-provider-node-driver'];

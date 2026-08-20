@@ -6,6 +6,7 @@ name: Electron app PREMIUM
   push:
     tags:
       - v[0-9]+.[0-9]+.[0-9]+
+  workflow_dispatch: {}
 permissions:
   id-token: write
   contents: write
@@ -125,14 +126,14 @@ jobs:
           SNAPCRAFT_STORE_CREDENTIALS: ${{secrets.SNAPCRAFT_LOGIN}}
       - name: Azure login (OIDC)
         uses: azure/login@v2
-        if: matrix.os == 'windows-2022'
+        if: matrix.os == 'windows-2022' && secrets.AZURE_TC_CLIENT_ID != ''
         with:
           client-id: ${{ secrets.AZURE_TC_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TC_TENANT_ID }}
           allow-no-subscriptions: true
       - name: Sign Windows artifacts with Azure Trusted Signing
         uses: azure/trusted-signing-action@v0
-        if: matrix.os == 'windows-2022'
+        if: matrix.os == 'windows-2022' && secrets.AZURE_TC_CLIENT_ID != ''
         with:
           endpoint: https://wus3.codesigning.azure.net/
           trusted-signing-account-name: DbGate

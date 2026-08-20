@@ -85,6 +85,8 @@ on:
     # branches:
     #   - production
 
+  workflow_dispatch: {}
+
 permissions:
   id-token: write
   contents: write
@@ -165,6 +167,65 @@ jobs:
         # env:
         #   GH_TOKEN: ${{ secrets.GH_TOKEN }} # token for electron publish
 
+      - name: Verify Windows artifact structure (plugins in asar)
+        _if: _community
+        if: matrix.os == 'windows-2022'
+        run: |
+          node common/verifyWindowsArtifacts.js app/dist/win-unpacked/resources/app.asar .
+
+      - name: Windows launch smoke test (unpacked build)
+        _if: _community
+        if: matrix.os == 'windows-2022'
+        shell: pwsh
+        run: |
+          $exe = "app\dist\win-unpacked\DbGate.exe"
+          if (-not (Test-Path $exe)) { Write-Error "Built executable not found: $exe"; exit 1 }
+          $env:SMOKE_TEST = "1"
+          $proc = Start-Process -FilePath $exe -PassThru
+          if (-not $proc.WaitForExit(300000)) {
+            $proc.Kill()
+            Write-Error "SMOKE-TEST FAIL: app did not exit within 300 seconds"
+            exit 1
+          }
+          if ($proc.ExitCode -ne 0) { Write-Error "SMOKE-TEST FAIL: exit code $($proc.ExitCode)"; exit 1 }
+          Write-Host "SMOKE-TEST PASS: unpacked Windows build starts, loads plugins and exits cleanly"
+
+      - name: NSIS silent install to custom path with spaces
+        _if: _community
+        if: matrix.os == 'windows-2022'
+        # cmd shell: NSIS requires /D= to be the LAST, UNQUOTED argument - PowerShell
+        # would quote the argument because the path contains spaces
+        shell: cmd
+        run: |
+          for %%f in (app\dist\*win_x64.exe) do set "INSTALLER=%%f"
+          echo Installing %INSTALLER%
+          "%INSTALLER%" /S /D=C:\Program Files\DbGate Eval Dir
+          if errorlevel 1 (echo Installer failed & exit /b 1)
+          if not exist "C:\Program Files\DbGate Eval Dir\DbGate.exe" (echo Installed executable not found & exit /b 1)
+          node common\verifyWindowsArtifacts.js "C:\Program Files\DbGate Eval Dir\resources\app.asar" .
+          if errorlevel 1 exit /b 1
+          echo NSIS install to custom path with spaces: OK
+
+      - name: Installed app launch smoke test
+        _if: _community
+        if: matrix.os == 'windows-2022'
+        shell: pwsh
+        run: |
+          $exe = "C:\Program Files\DbGate Eval Dir\DbGate.exe"
+          $env:SMOKE_TEST = "1"
+          $proc = Start-Process -FilePath $exe -PassThru
+          if (-not $proc.WaitForExit(300000)) {
+            $proc.Kill()
+            Write-Error "SMOKE-TEST FAIL: installed app did not exit within 300 seconds"
+            exit 1
+          }
+          if ($proc.ExitCode -ne 0) { Write-Error "SMOKE-TEST FAIL: exit code $($proc.ExitCode)"; exit 1 }
+          Write-Host "SMOKE-TEST PASS: installed app starts, loads plugins and exits cleanly"
+          $uninstaller = "C:\Program Files\DbGate Eval Dir\Uninstall DbGate.exe"
+          if (Test-Path $uninstaller) {
+            Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait -ErrorAction SilentlyContinue
+          }
+
       - name: Publish MacOS
         if: matrix.os == 'macos-14'
         run: |
@@ -195,7 +256,7 @@ jobs:
 
       - name: Azure login (OIDC)
         uses: azure/login@v2
-        if: matrix.os == 'windows-2022'
+        if: matrix.os == 'windows-2022' && secrets.AZURE_TC_CLIENT_ID != ''
         with:
           client-id: ${{ secrets.AZURE_TC_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TC_TENANT_ID }}
@@ -203,7 +264,7 @@ jobs:
 
       - name: Sign Windows artifacts with Azure Trusted Signing
         uses: azure/trusted-signing-action@v0
-        if: matrix.os == 'windows-2022'
+        if: matrix.os == 'windows-2022' && secrets.AZURE_TC_CLIENT_ID != ''
         with:
           endpoint: https://wus3.codesigning.azure.net/
           trusted-signing-account-name: DbGate

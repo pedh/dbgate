@@ -21,6 +21,14 @@ const updaterChannel = require('./updaterChannel');
 
 // require('@electron/remote/main').initialize();
 
+// Non-interactive smoke-test mode for CI: load the API bundle, require every packaged
+// plugin backend, wait for the main window to render, then exit 0. Any uncaught error
+// exits non-zero instead of being swallowed.
+const isSmokeTest = process.env.SMOKE_TEST === '1';
+if (isSmokeTest) {
+  app.disableHardwareAcceleration();
+}
+
 const configRootPath = path.join(app.getPath('userData'), 'config-root.json');
 let saveConfigOnExit = true;
 let initialConfig = {};
@@ -43,6 +51,9 @@ function getTranslated(key) {
 
 process.on('uncaughtException', function (error) {
   console.error('uncaughtException', error);
+  if (isSmokeTest) {
+    app.exit(1);
+  }
 });
 
 const isMac = () => os.platform() == 'darwin';
@@ -366,7 +377,9 @@ function ensureBoundsVisible(bounds) {
 }
 
 function createWindow() {
-  const datadir = path.join(os.homedir(), '.dbgate');
+  const datadir = process.env.PORTABLE_EXECUTABLE_DIR
+    ? path.join(process.env.PORTABLE_EXECUTABLE_DIR, '.dbgate')
+    : path.join(os.homedir(), '.dbgate');
 
   try {
     settingsJson = fillMissingSettings(
@@ -489,6 +502,29 @@ function createWindow() {
     // loadLogsContent = api.loadLogsContent;
     apiLoaded = true;
   }
+
+  if (isSmokeTest) {
+    // Same layout as packages/api/src/utility/directories.js packagedPluginsDir() for the
+    // electron bundle: <app-root>/packages/plugins/<name>/dist/backend.js
+    const pluginsDir = path.resolve(path.dirname(global.API_PACKAGE), '../../plugins');
+    const packagedPluginList = fs
+      .readdirSync(pluginsDir)
+      .filter(name => name.startsWith('dbgate-plugin-'));
+    if (packagedPluginList.length === 0) {
+      throw new Error(`SMOKE-TEST FAIL: no packaged plugins found in ${pluginsDir}`);
+    }
+    for (const pluginName of packagedPluginList) {
+      const backendPath = path.join(pluginsDir, pluginName, 'dist', 'backend.js');
+      console.log(`SMOKE-TEST requiring plugin ${pluginName} from ${backendPath}`);
+      if (!fs.existsSync(backendPath)) {
+        throw new Error(`SMOKE-TEST FAIL: plugin backend not found: ${backendPath}`);
+      }
+      require(backendPath);
+      console.log(`SMOKE-TEST plugin ${pluginName} loaded OK`);
+    }
+    console.log(`SMOKE-TEST all ${packagedPluginList.length} packaged plugins loaded OK`);
+  }
+
   mainModule.setElectronSender(mainWindow.webContents);
 
   loadMainWindow();
@@ -559,6 +595,18 @@ autoUpdater.on('error', error => {
 
 function onAppReady() {
   createWindow();
+
+  if (isSmokeTest) {
+    const timeout = setTimeout(() => {
+      console.error('SMOKE-TEST FAIL: timed out waiting for the main window to load');
+      app.exit(1);
+    }, 120000);
+    mainWindow.webContents.once('did-finish-load', () => {
+      clearTimeout(timeout);
+      console.log('SMOKE-TEST PASS: app started, plugins loaded, main window rendered');
+      app.exit(0);
+    });
+  }
 }
 
 // This method will be called when Electron has finished

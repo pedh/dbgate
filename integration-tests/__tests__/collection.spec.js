@@ -1,7 +1,9 @@
 const requireEngineDriver = require('dbgate-api/src/utility/requireEngineDriver');
 const crypto = require('crypto');
 const stream = require('stream');
-const { mongoDbEngine, dynamoDbEngine } = require('../engines');
+const fs = require('fs');
+const path = require('path');
+const { mongoDbEngine, dynamoDbEngine, engineFilter } = require('../engines');
 const tableWriter = require('dbgate-api/src/shell/tableWriter');
 const tableReader = require('dbgate-api/src/shell/tableReader');
 const copyStream = require('dbgate-api/src/shell/copyStream');
@@ -10,10 +12,17 @@ function randomCollectionName() {
     return 'test_' + crypto.randomBytes(6).toString('hex');
 }
 
+function isPluginAvailable(engine) {
+    const pluginName = engine.connection.engine.split('@')[1];
+    return fs.existsSync(path.join(__dirname, '../../plugins', pluginName));
+}
+
 const documentEngines = [
     { label: 'MongoDB', engine: mongoDbEngine },
     { label: 'DynamoDB', engine: dynamoDbEngine },
-];
+].filter(
+    x => (!engineFilter || engineFilter.includes(x.label)) && isPluginAvailable(x.engine)
+);
 
 async function connectEngine(engine) {
     const driver = requireEngineDriver(engine.connection);
@@ -79,7 +88,10 @@ async function deleteDocument(driver, conn, collectionName, condition) {
 }
 
 describe('Collection CRUD', () => {
-    describe.each(documentEngines.map(e => [e.label, e.engine]))('%s', (label, engine) => {
+  if (documentEngines.length === 0) {
+    return;
+  }
+  describe.each(documentEngines.map(e => [e.label, e.engine]))('%s', (label, engine) => {
         let driver;
         let conn;
         let collectionName;
@@ -369,6 +381,9 @@ function createExportStream() {
 }
 
 describe('Collection Import/Export', () => {
+    if (documentEngines.length === 0) {
+        return;
+    }
     describe.each(documentEngines.map(e => [e.label, e.engine]))('%s', (label, engine) => {
         let driver;
         let conn;

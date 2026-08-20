@@ -794,7 +794,22 @@ const enginesOnLocal = [
 ];
 
 /** @type {import('dbgate-types').TestEngineInfo[] & Record<string, import('dbgate-types').TestEngineInfo>} */
-module.exports = process.env.CITEST ? enginesOnCi : enginesOnLocal;
+// INTEGRATION_TEST_ENGINES allows running the suite on runners which cannot provide all
+// database containers (e.g. windows-latest has no docker services), e.g.
+// INTEGRATION_TEST_ENGINES="SQLite,LibSQL FILE,DuckDB,MongoDB"
+const engineFilter = process.env.INTEGRATION_TEST_ENGINES
+  ? process.env.INTEGRATION_TEST_ENGINES.split(',')
+      .map(x => x.trim())
+      .filter(x => x)
+  : null;
+
+function applyEngineFilter(list) {
+  if (!engineFilter) return list;
+  return list.filter(engine => engineFilter.includes(engine.label));
+}
+
+module.exports = applyEngineFilter(process.env.CITEST ? enginesOnCi : enginesOnLocal);
+module.exports.engineFilter = engineFilter;
 
 module.exports.mysqlEngine = mysqlEngine;
 module.exports.mariaDbEngine = mariaDbEngine;

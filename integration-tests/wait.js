@@ -1,6 +1,6 @@
 const requireEngineDriver = require('dbgate-api/src/utility/requireEngineDriver');
 const engines = require('./engines');
-const { mongoDbEngine, dynamoDbEngine } = require('./engines');
+const { mongoDbEngine, dynamoDbEngine, engineFilter } = require('./engines');
 global.DBGATE_PACKAGES = {
   'dbgate-tools': require('dbgate-tools'),
   'dbgate-sqltree': require('dbgate-sqltree'),
@@ -27,7 +27,9 @@ async function connectEngine(engine) {
 
 async function run() {
   await new Promise(resolve => setTimeout(resolve, 10000));
-  const documentEngines = [mongoDbEngine, dynamoDbEngine];
+  const documentEngines = [mongoDbEngine, dynamoDbEngine].filter(
+    engine => !engineFilter || engineFilter.includes(engine.label)
+  );
   await Promise.all([...engines, ...documentEngines].map(engine => connectEngine(engine)));
 }
 
