@@ -1,9 +1,9 @@
 const stableStringify = require('json-stable-stringify');
 const _ = require('lodash');
 const fp = require('lodash/fp');
-const { testWrapper, removeNotNull, transformSqlForEngine } = require('../tools');
+const { testWrapper, removeNotNull, transformSqlForEngine, testEachEngines } = require('../tools');
 const engines = require('../engines');
-const { mysqlEngine } = require('../engines');
+const { mysqlEngine, isEngineSelected } = require('../engines');
 const crypto = require('crypto');
 const {
   getAlterTableScript,
@@ -152,7 +152,7 @@ describe('Alter table', () => {
     })
   );
 
-  test.each(engines.filter(i => i.supportTableComments).map(engine => [engine.label, engine]))(
+  testEachEngines(engines.filter(i => i.supportTableComments))(
     'Add comment to table - %s',
     testWrapper(async (conn, driver, engine) => {
       await testTableDiff(engine, conn, driver, tbl => {
@@ -161,7 +161,7 @@ describe('Alter table', () => {
     })
   );
 
-  test.each(engines.filter(i => i.supportColumnComments).map(engine => [engine.label, engine]))(
+  testEachEngines(engines.filter(i => i.supportColumnComments))(
     'Add comment to column - %s',
     testWrapper(async (conn, driver, engine) => {
       await testTableDiff(engine, conn, driver, tbl => {
@@ -266,7 +266,8 @@ describe('Alter table', () => {
     })
   );
 
-  test.each([[mysqlEngine.label, mysqlEngine]])(
+  // MySQL is not part of runs without database service containers
+  testEachEngines(isEngineSelected(mysqlEngine) ? [mysqlEngine] : [])(
     'MySQL ON UPDATE timestamp column round-trip - %s',
     testWrapper(async (conn, driver, engine) => {
       const query = formatQueryWithoutParams(

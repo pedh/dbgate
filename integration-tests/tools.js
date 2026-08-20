@@ -106,10 +106,20 @@ const transformSqlForEngine = (engine, sql) => {
   return result;
 };
 
+// jest errors the whole suite when test.each gets an empty array, which happens whenever
+// a capability is supported by no engine of the current selection (eg. table comments when
+// only the embedded engines run). Report it as an explicit skip so the missing coverage
+// stays visible in the test report instead of erroring or silently passing.
+const testEachEngines = engines => {
+  const cases = engines.map(engine => [engine.label, engine]);
+  return cases.length > 0 ? test.each(cases) : test.skip.each([['not supported by any engine of this run', null]]);
+};
+
 module.exports = {
   randomDbName,
   connect,
   testWrapper,
   testWrapperPrepareOnly,
   transformSqlForEngine,
+  testEachEngines,
 };

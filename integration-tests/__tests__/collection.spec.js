@@ -1,7 +1,7 @@
 const requireEngineDriver = require('dbgate-api/src/utility/requireEngineDriver');
 const crypto = require('crypto');
 const stream = require('stream');
-const { mongoDbEngine, dynamoDbEngine, isEngineAvailable } = require('../engines');
+const { mongoDbEngine, dynamoDbEngine, isEngineAvailable, isEngineSelected } = require('../engines');
 const tableWriter = require('dbgate-api/src/shell/tableWriter');
 const tableReader = require('dbgate-api/src/shell/tableReader');
 const copyStream = require('dbgate-api/src/shell/copyStream');
@@ -10,15 +10,14 @@ function randomCollectionName() {
     return 'test_' + crypto.randomBytes(6).toString('hex');
 }
 
-// engines whose plugin is not part of this checkout (eg. premium-only DynamoDB) cannot be tested
+// document engines need a running server and, for DynamoDB, a premium-only plugin
 const documentEngines = [
     { label: 'MongoDB', engine: mongoDbEngine },
     { label: 'DynamoDB', engine: dynamoDbEngine },
-].filter(x => isEngineAvailable(x.engine));
+].filter(x => isEngineAvailable(x.engine) && isEngineSelected(x.engine));
 
-if (documentEngines.length == 0) {
-    throw new Error('No document engine plugin available');
-}
+const describeDocumentEngines = documentEngines.length > 0 ? describe : describe.skip;
+const testedEngines = documentEngines.length > 0 ? documentEngines : [{ label: 'no document engine in this run' }];
 
 async function connectEngine(engine) {
     const driver = requireEngineDriver(engine.connection);
@@ -84,7 +83,7 @@ async function deleteDocument(driver, conn, collectionName, condition) {
 }
 
 describe('Collection CRUD', () => {
-    describe.each(documentEngines.map(e => [e.label, e.engine]))('%s', (label, engine) => {
+    describeDocumentEngines.each(testedEngines.map(e => [e.label, e.engine]))('%s', (label, engine) => {
         let driver;
         let conn;
         let collectionName;
@@ -374,7 +373,7 @@ function createExportStream() {
 }
 
 describe('Collection Import/Export', () => {
-    describe.each(documentEngines.map(e => [e.label, e.engine]))('%s', (label, engine) => {
+    describeDocumentEngines.each(testedEngines.map(e => [e.label, e.engine]))('%s', (label, engine) => {
         let driver;
         let conn;
         let collectionName;

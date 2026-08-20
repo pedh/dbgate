@@ -46,7 +46,10 @@ describe('Codex credential storage', () => {
     expect(fileContents).toMatch(/^crypt:/);
     expect(fileContents).not.toContain(credentials.accessToken);
     expect(fileContents).not.toContain(credentials.refreshToken);
-    expect(fileMode).toBe(0o600);
+    if (process.platform !== 'win32') {
+      // NTFS has no POSIX permission bits, node reports 0o666 for every regular file there
+      expect(fileMode).toBe(0o600);
+    }
     expect(files).toEqual(['codex-oauth.json']);
     await expect(credentialsStore.readCredentials()).resolves.toEqual(credentials);
   });

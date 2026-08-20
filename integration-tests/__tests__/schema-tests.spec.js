@@ -1,7 +1,7 @@
 const stableStringify = require('json-stable-stringify');
 const _ = require('lodash');
 const fp = require('lodash/fp');
-const { testWrapper } = require('../tools');
+const { testWrapper, testEachEngines } = require('../tools');
 const engines = require('../engines');
 const { runCommandOnDriver } = require('dbgate-tools');
 
@@ -18,7 +18,7 @@ async function baseStructure(conn, driver) {
 }
 
 describe('Schema tests', () => {
-  test.each(engines.filter(x => x.supportSchemas).map(engine => [engine.label, engine]))(
+  testEachEngines(engines.filter(x => x.supportSchemas))(
     'Create schema - %s',
     testWrapper(async (conn, driver, engine) => {
       await baseStructure(conn, driver);
@@ -39,7 +39,7 @@ describe('Schema tests', () => {
     })
   );
 
-  test.each(engines.filter(x => x.supportSchemas).map(engine => [engine.label, engine]))(
+  testEachEngines(engines.filter(x => x.supportSchemas))(
     'Drop schema - %s',
     testWrapper(async (conn, driver, engine) => {
       await baseStructure(conn, driver);
@@ -59,7 +59,7 @@ describe('Schema tests', () => {
     })
   );
 
-  test.each(engines.filter(x => x.supportSchemas && !x.skipSeparateSchemas).map(engine => [engine.label, engine]))(
+  testEachEngines(engines.filter(x => x.supportSchemas && !x.skipSeparateSchemas))(
     'Table inside schema - %s',
     testWrapper(async (handle, driver, engine) => {
       await baseStructure(handle, driver);

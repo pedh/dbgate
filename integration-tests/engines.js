@@ -832,3 +832,9 @@ module.exports.isEngineAvailable = engine => {
   if (!packageName) return false;
   return fs.existsSync(path.join(__dirname, '..', 'plugins', packageName));
 };
+
+// Whether an engine is part of the engine selection of this run. Runs without database
+// service containers select the embedded engines only, so tests bound to a specific
+// server engine have nothing to connect to.
+module.exports.isEngineSelected = engine =>
+  selectEngines().some(x => x.connection?.engine == engine?.connection?.engine);

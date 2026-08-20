@@ -1,7 +1,7 @@
 const _ = require('lodash');
 const fp = require('lodash/fp');
 const engines = require('../engines');
-const { testWrapper } = require('../tools');
+const { testWrapper, testEachEngines } = require('../tools');
 const { extendDatabaseInfo, runCommandOnDriver } = require('dbgate-tools');
 
 function createExpector(value) {
@@ -64,9 +64,7 @@ describe('Table create', () => {
     })
   );
 
-  test.each(
-    engines.filter(i => i.supportTableComments || i.supportColumnComments).map(engine => [engine.label, engine])
-  )(
+  testEachEngines(engines.filter(i => i.supportTableComments || i.supportColumnComments))(
     'Simple table with comment - %s',
     testWrapper(async (conn, driver, engine) => {
       await testTableCreate(engine, conn, driver, {

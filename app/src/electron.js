@@ -18,8 +18,11 @@ const url = require('url');
 const mainMenuDefinition = require('./mainMenuDefinition');
 const { isProApp } = require('./proTools');
 const updaterChannel = require('./updaterChannel');
+const { startSmokeTest } = require('./smokeTest');
 
 // require('@electron/remote/main').initialize();
+
+const finishSmokeTest = process.env.DBGATE_SMOKE_TEST ? startSmokeTest(app) : null;
 
 const configRootPath = path.join(app.getPath('userData'), 'config-root.json');
 let saveConfigOnExit = true;
@@ -217,6 +220,11 @@ ipcMain.on('open-dev-tools', () => {
   mainWindow.webContents.openDevTools();
 });
 ipcMain.on('app-started', async (event, arg) => {
+  if (finishSmokeTest) {
+    finishSmokeTest();
+    return;
+  }
+
   if (runCommandOnLoad) {
     mainWindow.webContents.send('run-command', runCommandOnLoad);
     runCommandOnLoad = null;

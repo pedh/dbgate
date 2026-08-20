@@ -1,6 +1,6 @@
 /// TODO
 
-const { testWrapper, testWrapperPrepareOnly } = require('../tools');
+const { testWrapper, testWrapperPrepareOnly, testEachEngines } = require('../tools');
 const _ = require('lodash');
 const engines = require('../engines');
 const deployDb = require('dbgate-api/src/shell/deployDb');
@@ -437,7 +437,8 @@ describe('Deploy database', () => {
     })
   );
 
-  test.each([engines.postgreSqlEngine].map(engine => [engine.label, engine]))(
+  // PostgreSQL is not part of runs without database service containers
+  testEachEngines(engines.isEngineSelected(engines.postgreSqlEngine) ? [engines.postgreSqlEngine] : [])(
     'Current timestamp default value - %s',
     testWrapper(async (conn, driver, engine) => {
       await testDatabaseDeploy(engine, conn, driver, [
@@ -466,11 +467,8 @@ describe('Deploy database', () => {
     })
   );
 
-  test.each(
-    engines
-      .filter(i => !i.skipDeploy)
-      .filter(x => !x.skipChangeColumn && !x.skipNullability)
-      .map(engine => [engine.label, engine])
+  testEachEngines(
+    engines.filter(i => !i.skipDeploy).filter(x => !x.skipChangeColumn && !x.skipNullability)
   )(
     'Change column to NOT NULL column with default - %s',
     testWrapper(async (conn, driver, engine) => {
@@ -620,12 +618,7 @@ describe('Deploy database', () => {
     })
   );
 
-  test.each(
-    engines
-      .filter(i => !i.skipDeploy)
-      .filter(engine => engine.supportRenameSqlObject)
-      .map(engine => [engine.label, engine])
-  )(
+  testEachEngines(engines.filter(i => !i.skipDeploy).filter(engine => engine.supportRenameSqlObject))(
     'Mark view removed - %s',
     testWrapper(async (conn, driver, engine) => {
       await testDatabaseDeploy(engine, conn, driver, [[T1, V1], [T1], [T1]], {
@@ -669,12 +662,7 @@ describe('Deploy database', () => {
     })
   );
 
-  test.each(
-    engines
-      .filter(i => !i.skipDeploy)
-      .filter(engine => engine.supportRenameSqlObject)
-      .map(engine => [engine.label, engine])
-  )(
+  testEachEngines(engines.filter(i => !i.skipDeploy).filter(engine => engine.supportRenameSqlObject))(
     'Undelete view - %s',
     testWrapper(async (conn, driver, engine) => {
       await testDatabaseDeploy(engine, conn, driver, [[T1, V1], [T1], [T1, V1]], {
