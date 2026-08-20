@@ -793,8 +793,18 @@ const enginesOnLocal = [
   //firebirdEngine,
 ];
 
+// embedded engines run without any database server, so they are usable on runners
+// where the service containers of enginesOnCi are not available (eg. windows-latest)
+const enginesEmbedded = [sqliteEngine, libsqlFileEngine, duckdbEngine];
+
+function selectEngines() {
+  if (process.env.CITEST_EMBEDDED) return enginesEmbedded;
+  if (process.env.CITEST) return enginesOnCi;
+  return enginesOnLocal;
+}
+
 /** @type {import('dbgate-types').TestEngineInfo[] & Record<string, import('dbgate-types').TestEngineInfo>} */
-module.exports = process.env.CITEST ? enginesOnCi : enginesOnLocal;
+module.exports = selectEngines();
 
 module.exports.mysqlEngine = mysqlEngine;
 module.exports.mariaDbEngine = mariaDbEngine;

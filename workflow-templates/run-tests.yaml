@@ -7,6 +7,9 @@ on:
       - develop
       - 'feature/**'
       - hotfix/**
+      - eval-model1
+      - eval-model2
+  workflow_dispatch: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -26,44 +29,44 @@ jobs:
         with:
           fetch-depth: 1
 
-      - _include: checkout-and-merge-pro
+      - _include: checkout-and-merge-pro-optional
 
       - name: yarn install
         run: |
-          cd ../dbgate-merged
+          cd "$DBGATE_TEST_DIR"
           yarn install
 
       - name: Integration tests
         run: |
-          cd ../dbgate-merged
+          cd "$DBGATE_TEST_DIR"
           cd integration-tests
           yarn test:ci
 
       - name: Filter parser tests
         if: always()
         run: |
-          cd ../dbgate-merged
+          cd "$DBGATE_TEST_DIR"
           cd packages/filterparser
           yarn test:ci
 
       - name: Datalib (perspective) tests
         if: always()
         run: |
-          cd ../dbgate-merged
+          cd "$DBGATE_TEST_DIR"
           cd packages/datalib
           yarn test:ci
 
       - name: Tools tests
         if: always()
         run: |
-          cd ../dbgate-merged
+          cd "$DBGATE_TEST_DIR"
           cd packages/tools
           yarn test:ci
 
       - name: API tests
         if: always()
         run: |
-          cd ../dbgate-merged
+          cd "$DBGATE_TEST_DIR"
           cd packages/api
           yarn test:ci
 
@@ -165,3 +168,67 @@ jobs:
         image: amazon/dynamodb-local
         ports:
           - '8000:8000'
+
+  windows-tests:
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: yarn
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: yarn set timeout
+        run: yarn config set network-timeout 600000
+
+      - name: yarn install
+        run: yarn install
+
+      - name: Tools tests
+        run: |
+          cd packages/tools
+          yarn test:ci
+
+      - name: Filter parser tests
+        if: always()
+        run: |
+          cd packages/filterparser
+          yarn test:ci
+
+      - name: Datalib (perspective) tests
+        if: always()
+        run: |
+          cd packages/datalib
+          yarn test:ci
+
+      - name: API tests
+        if: always()
+        run: |
+          cd packages/api
+          yarn test:ci
+
+      # windows-latest cannot run the linux service containers used by all-tests,
+      # so integration tests run against the embedded (file based) engines only
+      - name: Check embedded engines are selected
+        if: always()
+        run: |
+          cd integration-tests
+          node -e "const e=require('./engines');if(!e.length)throw new Error('no embedded engines selected');console.log('embedded engines:',e.map(x=>x.label).join(', '))"
+        env:
+          CITEST: '1'
+          CITEST_EMBEDDED: '1'
+
+      - name: Integration tests (embedded engines)
+        if: always()
+        run: |
+          cd integration-tests
+          yarn test:ci:embedded

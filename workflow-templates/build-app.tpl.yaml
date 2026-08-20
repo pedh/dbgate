@@ -84,6 +84,7 @@ on:
 
     # branches:
     #   - production
+  workflow_dispatch: {}
 
 permissions:
   id-token: write

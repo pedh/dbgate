@@ -26,53 +26,76 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 1
+      - name: Detect dbgate-pro availability
+        id: detect-pro
+        shell: bash
+        env:
+          PRO_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          if [ -n "$PRO_TOKEN" ]; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'dbgate-pro token not available, testing community sources only'
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+          fi
       - name: Checkout dbgate/dbgate-pro
-        uses: actions/checkout@v2
+        if: steps.detect-pro.outputs.available == 'true'
+        uses: actions/checkout@v4
         with:
           repository: dbgate/dbgate-pro
           token: ${{ secrets.GH_TOKEN }}
           path: dbgate-pro
           ref: 3886ef1aebd777a2bd27683a85cddaedac62320a
       - name: Diflow install
+        if: steps.detect-pro.outputs.available == 'true'
         run: npm install -g diflow
       - name: Merge dbgate/dbgate-pro
+        if: steps.detect-pro.outputs.available == 'true'
         shell: bash
         run: |
           mkdir ../dbgate-pro
           mv dbgate-pro/* ../dbgate-pro/
           rm -rf dbgate-pro
           diflow fsmerge -b . -d ../dbgate-pro -m ../dbgate-merged
+      - name: Resolve test directory
+        shell: bash
+        run: |
+          if [ -d ../dbgate-merged ]; then
+            echo "DBGATE_TEST_DIR=$(cd ../dbgate-merged && pwd)" >> "$GITHUB_ENV"
+          else
+            echo "DBGATE_TEST_DIR=$(pwd)" >> "$GITHUB_ENV"
+          fi
       - name: yarn install
         run: |
-          cd ../dbgate-merged
+          cd "$DBGATE_TEST_DIR"
           yarn install
       - name: Integration tests
         run: |
-          cd ../dbgate-merged
+          cd "$DBGATE_TEST_DIR"
           cd integration-tests
           yarn test:ci
       - name: Filter parser tests
         if: always()
         run: |
-          cd ../dbgate-merged
+          cd "$DBGATE_TEST_DIR"
           cd packages/filterparser
           yarn test:ci
       - name: Datalib (perspective) tests
         if: always()
         run: |
-          cd ../dbgate-merged
+          cd "$DBGATE_TEST_DIR"
           cd packages/datalib
           yarn test:ci
       - name: Tools tests
         if: always()
         run: |
-          cd ../dbgate-merged
+          cd "$DBGATE_TEST_DIR"
           cd packages/tools
           yarn test:ci
       - name: API tests
         if: always()
         run: |
-          cd ../dbgate-merged
+          cd "$DBGATE_TEST_DIR"
           cd packages/api
           yarn test:ci
     services:
@@ -80,15 +103,15 @@ jobs:
         image: postgres
         env:
           POSTGRES_PASSWORD: Pwd2020Db
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+        options: '--health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5'
         ports:
-          - 15000:5432
+          - '15000:5432'
       mysql-integr:
         image: mysql:8.0.18
         env:
           MYSQL_ROOT_PASSWORD: Pwd2020Db
         ports:
-          - 15001:3306
+          - '15001:3306'
       mssql-integr:
         image: mcr.microsoft.com/mssql/server
         env:
@@ -96,27 +119,27 @@ jobs:
           SA_PASSWORD: Pwd2020Db
           MSSQL_PID: Express
         ports:
-          - 15002:1433
+          - '15002:1433'
       clickhouse-integr:
         image: bitnamilegacy/clickhouse:24.8.4
         env:
           CLICKHOUSE_ADMIN_PASSWORD: Pwd2020Db
         ports:
-          - 15005:8123
+          - '15005:8123'
       oracle-integr:
         image: gvenzl/oracle-xe:21-slim
         env:
           ORACLE_PASSWORD: Pwd2020Db
         ports:
-          - 15006:1521
+          - '15006:1521'
       cassandradb:
         image: cassandra:5.0.2
         ports:
-          - 15942:9042
+          - '15942:9042'
       libsql:
         image: ghcr.io/tursodatabase/libsql-server:latest
         ports:
-          - 8080:8080
+          - '8080:8080'
       firebird:
         image: firebirdsql/firebird:latest
         env:
@@ -127,15 +150,65 @@ jobs:
           FIREBIRD_TRACE: false
           FIREBIRD_USE_LEGACY_AUTH: true
         ports:
-          - 3050:3050
+          - '3050:3050'
       mongodb:
         image: mongo:4.0.12
         ports:
-          - 27017:27017
+          - '27017:27017'
         volumes:
           - mongo-data:/data/db
           - mongo-config:/data/configdb
       dynamodb:
         image: amazon/dynamodb-local
         ports:
-          - 8000:8000
+          - '8000:8000'
+  windows-tests:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: yarn
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: yarn set timeout
+        run: yarn config set network-timeout 600000
+      - name: yarn install
+        run: yarn install
+      - name: Tools tests
+        run: |
+          cd packages/tools
+          yarn test:ci
+      - name: Filter parser tests
+        if: always()
+        run: |
+          cd packages/filterparser
+          yarn test:ci
+      - name: Datalib (perspective) tests
+        if: always()
+        run: |
+          cd packages/datalib
+          yarn test:ci
+      - name: API tests
+        if: always()
+        run: |
+          cd packages/api
+          yarn test:ci
+      - name: Check embedded engines are selected
+        if: always()
+        run: |
+          cd integration-tests
+          node -e "const e=require('./engines');if(!e.length)throw new Error('no embedded engines selected');console.log('embedded engines:',e.map(x=>x.label).join(', '))"
+        env:
+          CITEST: '1'
+          CITEST_EMBEDDED: '1'
+      - name: Integration tests (embedded engines)
+        if: always()
+        run: |
+          cd integration-tests
+          yarn test:ci:embedded

@@ -17,3 +17,47 @@ checkout-and-merge-pro:
       mv dbgate-pro/* ../dbgate-pro/
       rm -rf dbgate-pro
       diflow fsmerge -b . -d ../dbgate-pro -m ../dbgate-merged
+
+# Same as checkout-and-merge-pro, but tolerates forks where secrets.GH_TOKEN is not
+# available. Tests then run against the community sources only. DBGATE_TEST_DIR always
+# points to the directory the tests have to run in.
+checkout-and-merge-pro-optional:
+  - name: Detect dbgate-pro availability
+    id: detect-pro
+    shell: bash
+    env:
+      PRO_TOKEN: ${{ secrets.GH_TOKEN }}
+    run: |
+      if [ -n "$PRO_TOKEN" ]; then
+        echo 'available=true' >> "$GITHUB_OUTPUT"
+      else
+        echo 'dbgate-pro token not available, testing community sources only'
+        echo 'available=false' >> "$GITHUB_OUTPUT"
+      fi
+  - name: Checkout dbgate/dbgate-pro
+    if: steps.detect-pro.outputs.available == 'true'
+    uses: actions/checkout@v4
+    with:
+      repository: dbgate/dbgate-pro
+      token: ${{ secrets.GH_TOKEN }}
+      path: dbgate-pro
+      ref: 3886ef1aebd777a2bd27683a85cddaedac62320a
+  - name: Diflow install
+    if: steps.detect-pro.outputs.available == 'true'
+    run: npm install -g diflow
+  - name: Merge dbgate/dbgate-pro
+    if: steps.detect-pro.outputs.available == 'true'
+    shell: bash
+    run: |
+      mkdir ../dbgate-pro
+      mv dbgate-pro/* ../dbgate-pro/
+      rm -rf dbgate-pro
+      diflow fsmerge -b . -d ../dbgate-pro -m ../dbgate-merged
+  - name: Resolve test directory
+    shell: bash
+    run: |
+      if [ -d ../dbgate-merged ]; then
+        echo "DBGATE_TEST_DIR=$(cd ../dbgate-merged && pwd)" >> "$GITHUB_ENV"
+      else
+        echo "DBGATE_TEST_DIR=$(pwd)" >> "$GITHUB_ENV"
+      fi
