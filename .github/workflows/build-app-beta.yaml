@@ -71,9 +71,6 @@ jobs:
         uses: samuelmeuli/action-snapcraft@v1
       - name: Publish Windows
         if: matrix.os == 'windows-latest'
-        env:
-          GYP_MSVS_VERSION: '2022'
-          GYP_MSVS_OVERRIDE_PATH: C:\Program Files\Microsoft Visual Studio\2022\Enterprise
         run: |
 
           yarn run build:app

@@ -1,0 +1,13 @@
+diff --git a/node_modules/node-gyp/lib/find-visualstudio.js b/node_modules/node-gyp/lib/find-visualstudio.js
+index 16f6e79..fe3f959 100644
+--- a/node_modules/node-gyp/lib/find-visualstudio.js
++++ b/node_modules/node-gyp/lib/find-visualstudio.js
+@@ -138,7 +138,7 @@ VisualStudioFinder.prototype = {
+     ]
+ 
+     this.log.silly('Running', ps, psArgs)
+-    var child = execFile(ps, psArgs, { encoding: 'utf8' },
++    var child = execFile(ps, psArgs, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
+       (err, stdout, stderr) => {
+         this.parseData(err, stdout, stderr, cb)
+       })
