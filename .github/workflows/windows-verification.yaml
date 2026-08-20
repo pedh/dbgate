@@ -62,15 +62,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $installer = Get-ChildItem -Path app/dist -Filter '*win_x64.exe' | Select-Object -First 1
           if (-not $installer) { throw 'no NSIS installer found in app/dist' }
-          Write-Host "installing $($installer.FullName) into $env:INSTALL_DIR"
-          # NSIS requires /D to be the last parameter and to be given unquoted, so the
-          # command line is built by cmd.exe instead of by PowerShell argument handling
-          & cmd.exe /c "`"$($installer.FullName)`" /S /D=$env:INSTALL_DIR"
-          if ($LASTEXITCODE -ne 0) { throw "installer exited with $LASTEXITCODE" }
-          $exe = Join-Path $env:INSTALL_DIR 'DbGate.exe'
-          if (-not (Test-Path $exe)) { throw "DbGate.exe not found in $env:INSTALL_DIR" }
-          Write-Host "installed into $env:INSTALL_DIR"
-          Get-ChildItem -Path $env:INSTALL_DIR | Select-Object Name | Out-Host
+          ./common/runSilentInstall.ps1 -Installer $installer.FullName -TargetDir $env:INSTALL_DIR
       - name: Check installed app structure
         run: node common/checkPackagedApp.js "$INSTALL_DIR/resources"
       - name: Startup smoke test (installed app)
