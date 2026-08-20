@@ -31,15 +31,6 @@ if ($running) {
 $proc = Start-Process -FilePath $Installer -ArgumentList "/S /D=$TargetDir" -Wait -PassThru
 Write-Host "install: installer exit code $($proc.ExitCode)"
 
-$nsisLog = Join-Path $env:TEMP 'dbgate-nsis-init.log'
-if (Test-Path $nsisLog) {
-    Write-Host "--- $nsisLog ---"
-    Get-Content $nsisLog | Out-Host
-}
-else {
-    Write-Host "install: $nsisLog was not written, the custom NSIS include did not run"
-}
-
 $expectedExe = Join-Path $TargetDir 'DbGate.exe'
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 
