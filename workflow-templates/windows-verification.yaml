@@ -21,7 +21,10 @@ concurrency:
 
 jobs:
   windows-build:
-    runs-on: windows-latest
+    # node-gyp (used by electron-builder to rebuild native modules) cannot detect the
+    # Visual Studio version on the windows-latest image, so use the image the release
+    # build uses
+    runs-on: windows-2022
     timeout-minutes: 90
 
     defaults:
