@@ -142,16 +142,28 @@ jobs:
           yarn run build:app
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{secrets.SNAPCRAFT_LOGIN}}
+      - name: Check signing credentials
+        if: matrix.os == 'windows-2022'
+        id: signcheck
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_TC_CLIENT_ID }}
+        run: |
+          if [ -n "$AZURE_CLIENT_ID" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Azure login (OIDC)
         uses: azure/login@v2
-        if: matrix.os == 'windows-2022' && secrets.AZURE_TC_CLIENT_ID != ''
+        if: matrix.os == 'windows-2022' && steps.signcheck.outputs.present == 'true'
         with:
           client-id: ${{ secrets.AZURE_TC_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TC_TENANT_ID }}
           allow-no-subscriptions: true
       - name: Sign Windows artifacts with Azure Trusted Signing
         uses: azure/trusted-signing-action@v0
-        if: matrix.os == 'windows-2022' && secrets.AZURE_TC_CLIENT_ID != ''
+        if: matrix.os == 'windows-2022' && steps.signcheck.outputs.present == 'true'
         with:
           endpoint: https://wus3.codesigning.azure.net/
           trusted-signing-account-name: DbGate
