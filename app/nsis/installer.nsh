@@ -13,7 +13,10 @@
 !include LogicLib.nsh
 
 !macro customInit
-  System::Call 'kernel32::GetCommandLine() t .r8'
+  System::Call 'kernel32::GetCommandLineW()t.R8'
+  ${If} $R8 == ""
+    System::Call 'kernel32::GetCommandLine()t.R8'
+  ${EndIf}
 
   FileOpen $R5 "$TEMP\dbgate-nsis-init.log" w
   FileWrite $R5 "cmdline=[$R8]$\r$\n"
