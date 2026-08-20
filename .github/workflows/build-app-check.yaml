@@ -19,7 +19,7 @@ jobs:
       matrix:
         os:
           - macos-14
-          - windows-2022
+          - windows-latest
           - ubuntu-22.04
     steps:
       - uses: actions/setup-python@v5
@@ -66,16 +66,16 @@ jobs:
         if: matrix.os == 'ubuntu-22.04'
         uses: samuelmeuli/action-snapcraft@v1
       - name: Publish Windows
-        if: matrix.os == 'windows-2022'
+        if: matrix.os == 'windows-latest'
         run: |
 
           yarn run build:app
       - name: Verify Windows artifact structure (plugins in asar)
-        if: matrix.os == 'windows-2022'
+        if: matrix.os == 'windows-latest'
         run: |
           node common/verifyWindowsArtifacts.js app/dist/win-unpacked/resources/app.asar .
       - name: Windows launch smoke test (unpacked build)
-        if: matrix.os == 'windows-2022'
+        if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           $exe = "app\dist\win-unpacked\DbGate.exe"
@@ -90,7 +90,7 @@ jobs:
           if ($proc.ExitCode -ne 0) { Write-Error "SMOKE-TEST FAIL: exit code $($proc.ExitCode)"; exit 1 }
           Write-Host "SMOKE-TEST PASS: unpacked Windows build starts, loads plugins and exits cleanly"
       - name: NSIS silent install to custom path with spaces
-        if: matrix.os == 'windows-2022'
+        if: matrix.os == 'windows-latest'
         shell: cmd
         run: |
           for %%f in (app\dist\*win_x64.exe) do set "INSTALLER=%%f"
@@ -98,7 +98,7 @@ jobs:
           "%INSTALLER%" /S /D=C:\Program Files\DbGate Eval Dir
           if errorlevel 1 (echo Installer failed & exit /b 1)
       - name: Verify NSIS installation location
-        if: matrix.os == 'windows-2022'
+        if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           $installDir = "C:\Program Files\DbGate Eval Dir"
@@ -117,7 +117,7 @@ jobs:
           node common/verifyWindowsArtifacts.js (Join-Path $installDir "resources\app.asar") .
           Write-Host "NSIS install to custom path with spaces: OK"
       - name: Installed app launch smoke test
-        if: matrix.os == 'windows-2022'
+        if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           $exe = "C:\Program Files\DbGate Eval Dir\DbGate.exe"
@@ -154,7 +154,7 @@ jobs:
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{secrets.SNAPCRAFT_LOGIN}}
       - name: Check signing credentials
-        if: matrix.os == 'windows-2022'
+        if: matrix.os == 'windows-latest'
         id: signcheck
         shell: bash
         env:
@@ -167,14 +167,14 @@ jobs:
           fi
       - name: Azure login (OIDC)
         uses: azure/login@v2
-        if: matrix.os == 'windows-2022' && steps.signcheck.outputs.present == 'true'
+        if: matrix.os == 'windows-latest' && steps.signcheck.outputs.present == 'true'
         with:
           client-id: ${{ secrets.AZURE_TC_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TC_TENANT_ID }}
           allow-no-subscriptions: true
       - name: Sign Windows artifacts with Azure Trusted Signing
         uses: azure/trusted-signing-action@v0
-        if: matrix.os == 'windows-2022' && steps.signcheck.outputs.present == 'true'
+        if: matrix.os == 'windows-latest' && steps.signcheck.outputs.present == 'true'
         with:
           endpoint: https://wus3.codesigning.azure.net/
           trusted-signing-account-name: DbGate
@@ -184,7 +184,7 @@ jobs:
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
       - name: Fix YML hashes
-        if: matrix.os == 'windows-2022'
+        if: matrix.os == 'windows-latest'
         run: |
 
           yarn run fixYmlHashes

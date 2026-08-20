@@ -19,7 +19,7 @@ jobs:
       matrix:
         os:
           - macos-14
-          - windows-2022
+          - windows-latest
           - ubuntu-22.04
     steps:
       - uses: actions/setup-python@v5
@@ -95,7 +95,7 @@ jobs:
 
           yarn fillPackagedPlugins
       - name: Publish Windows
-        if: matrix.os == 'windows-2022'
+        if: matrix.os == 'windows-latest'
         run: |
           cd ..
           cd dbgate-merged
@@ -125,7 +125,7 @@ jobs:
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{secrets.SNAPCRAFT_LOGIN}}
       - name: Check signing credentials
-        if: matrix.os == 'windows-2022'
+        if: matrix.os == 'windows-latest'
         id: signcheck
         shell: bash
         env:
@@ -138,14 +138,14 @@ jobs:
           fi
       - name: Azure login (OIDC)
         uses: azure/login@v2
-        if: matrix.os == 'windows-2022' && steps.signcheck.outputs.present == 'true'
+        if: matrix.os == 'windows-latest' && steps.signcheck.outputs.present == 'true'
         with:
           client-id: ${{ secrets.AZURE_TC_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TC_TENANT_ID }}
           allow-no-subscriptions: true
       - name: Sign Windows artifacts with Azure Trusted Signing
         uses: azure/trusted-signing-action@v0
-        if: matrix.os == 'windows-2022' && steps.signcheck.outputs.present == 'true'
+        if: matrix.os == 'windows-latest' && steps.signcheck.outputs.present == 'true'
         with:
           endpoint: https://wus3.codesigning.azure.net/
           trusted-signing-account-name: DbGate
@@ -155,7 +155,7 @@ jobs:
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
       - name: Fix YML hashes
-        if: matrix.os == 'windows-2022'
+        if: matrix.os == 'windows-latest'
         run: |
           cd ..
           cd dbgate-merged
