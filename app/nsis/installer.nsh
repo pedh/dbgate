@@ -15,6 +15,11 @@
 !macro customInit
   ClearErrors
   ${GetParameters} $R8
+
+  FileOpen $R5 "$TEMP\dbgate-nsis-init.log" w
+  FileWrite $R5 "params=[$R8]$\r$\n"
+  FileWrite $R5 "instdir before=[$INSTDIR]$\r$\n"
+
   ${If} ${Errors}
     ClearErrors
   ${Else}
@@ -46,4 +51,7 @@
       IntOp $R9 $R9 + 1
     ${Loop}
   ${EndIf}
+
+  FileWrite $R5 "instdir after=[$INSTDIR]$\r$\n"
+  FileClose $R5
 !macroend
